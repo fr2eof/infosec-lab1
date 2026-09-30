@@ -1,0 +1,60 @@
+name: Secure API CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+
+  build-and-security:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and test
+        run: mvn --batch-mode clean test
+
+      # SpotBugs - SAST
+      - name: Run SpotBugs
+        run: mvn --batch-mode spotbugs:check
+
+      # OWASP Dependency-Check - SCA
+      - name: Run OWASP Dependency-Check
+        run: >
+          mvn --batch-mode
+          org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=7
+          -DsuppressionFiles=
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
+          if-no-files-found: ignore
+
+      - name: Upload SpotBugs report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotbugs-report
+          path: |
+            target/spotbugsXml.xml
+            target/spotbugs.html
+          if-no-files-found: ignore
